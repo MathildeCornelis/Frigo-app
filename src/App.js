@@ -619,7 +619,7 @@ function ItemForm({ initial, onSave, onCancel, title }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name || !form.expiry) return;
+    if (!form.name) return;
     onSave({ ...form, quantity: Number(form.quantity) });
   };
 
@@ -911,8 +911,8 @@ function FridgeApp({ onBack }) {
       ) : (
         <ul className="items-list">
           {filteredItems.map(item => {
-            const remaining = daysLeft(item.expiry);
-            const status = getStatus(remaining);
+            const remaining = item.expiry ? daysLeft(item.expiry) : null;
+            const status = item.expiry ? getStatus(remaining) : "fresh";
             return (
               <li key={item.id} className={`item-card ${status}`}>
                 <div className="item-dot" />
@@ -920,10 +920,10 @@ function FridgeApp({ onBack }) {
                 <div className="item-info">
                   <div className="item-name">
                     {item.name}
-                    <span className="item-badge">{getBadgeLabel(remaining)}</span>
+                    {item.expiry && <span className="item-badge">{getBadgeLabel(remaining)}</span>}
                   </div>
                   <div className="item-qty">{item.quantity} {item.unit}</div>
-                  <div className="item-meta">Péremption : {formatDate(item.expiry)}</div>
+                  {item.expiry && <div className="item-meta">Péremption : {formatDate(item.expiry)}</div>}
                 </div>
                 <div className="item-actions">
                   <div className="item-action-row">
