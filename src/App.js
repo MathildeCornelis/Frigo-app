@@ -396,6 +396,10 @@ function FridgeApp({ user, onBack }) {
   };
 
   const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
+  const handleTouchMove = (e) => {
+    const diff = e.touches[0].clientY - touchStartY.current;
+    if (diff > 10 && window.scrollY === 0) e.preventDefault();
+  };
   const handleTouchEnd = (e) => {
     const diff = e.changedTouches[0].clientY - touchStartY.current;
     if (diff > 80 && window.scrollY === 0) fetchItems(true);
@@ -458,7 +462,7 @@ function FridgeApp({ user, onBack }) {
     });
 
   return (
-    <div className="page-app" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <div className="page-app" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       <div className="app-header">
         <h1>Mes réserves</h1>
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
