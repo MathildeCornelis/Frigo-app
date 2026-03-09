@@ -6,10 +6,17 @@ const CATEGORIES = [
   { id: "laitier", label: "Laitier", icon: "🥛" },
   { id: "viande", label: "Viande", icon: "🥩" },
   { id: "poisson", label: "Poisson", icon: "🐟" },
-  { id: "legume", label: "Légume", icon: "🥦" },
-  { id: "fruit", label: "Fruit", icon: "🍎" },
+  { id: "legume", label: "Légume frais", icon: "🥦" },
+  { id: "legume-conserve", label: "Légume en conserve", icon: "🥫" },
+  { id: "fruit", label: "Fruit frais", icon: "🍎" },
+  { id: "fruit-conserve", label: "Fruit en conserve", icon: "🍑" },
+  { id: "feculents", label: "Féculents", icon: "🍝" },
+  { id: "pain", label: "Pain & Céréales", icon: "🍞" },
+  { id: "condiment", label: "Condiments & Sauces", icon: "🧂" },
   { id: "boisson", label: "Boisson", icon: "🧃" },
   { id: "plat", label: "Plat cuisiné", icon: "🍱" },
+  { id: "surgele", label: "Surgelé", icon: "🧊" },
+  { id: "epicerie", label: "Épicerie sèche", icon: "🌾" },
   { id: "autre", label: "Autre", icon: "🫙" },
 ];
 
@@ -668,6 +675,7 @@ function ItemForm({ initial, onSave, onCancel, title }) {
         <select name="location" value={form.location} onChange={handleChange}>
           <option>Frigo</option>
           <option>Congélateur</option>
+          <option>Placard</option>
         </select>
       </div>
 
@@ -834,13 +842,13 @@ function FridgeApp({ onBack }) {
 
       <div className="toolbar">
         <div className="filters">
-          {["Tous", "Frigo", "Congélateur"].map(f => (
+          {["Tous", "Frigo", "Congélateur", "Placard"].map(f => (
             <button
               key={f}
               className={`filter-btn ${filter === f ? "active" : ""}`}
               onClick={() => { setFilter(f); setCatFilter("all"); }}
             >
-              {f === "Frigo" ? "🌡️ " : f === "Congélateur" ? "❄️ " : ""}{f}
+              {f === "Frigo" ? "🌡️ " : f === "Congélateur" ? "❄️ " : f === "Placard" ? "🗄️ " : ""}{f}
             </button>
           ))}
         </div>
@@ -927,7 +935,7 @@ function FridgeApp({ onBack }) {
                 </div>
                 <div className="item-actions">
                   <div className="item-action-row">
-                    <span className="item-location">{item.location === "Frigo" ? "🌡️" : "❄️"}</span>
+                    <span className="item-location">{item.location === "Frigo" ? "🌡️" : item.location === "Congélateur" ? "❄️" : "🗄️"}</span>
                     <button className="btn-edit" onClick={() => setEditingItem(item)} title="Modifier">✏️</button>
                     <button className="btn-delete" onClick={() => deleteItem(item.id)} title="Supprimer">🗑</button>
                   </div>
