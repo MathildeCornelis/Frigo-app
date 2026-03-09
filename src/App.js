@@ -386,8 +386,16 @@ function FridgeApp({ user, onBack }) {
 
   useEffect(() => {
     fetchItems();
-    const interval = setInterval(() => fetchItems(true), 30000);
-    return () => clearInterval(interval);
+
+    // Sync temps réel via Supabase Realtime
+    const channel = supabase
+      .channel("items-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "items" }, () => {
+        fetchItems(true);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   const fetchItems = async (isRefresh = false) => {
@@ -489,26 +497,26 @@ function FridgeApp({ user, onBack }) {
         </div>
       )}
 
-      <div className="toolbar">
-        <div className="filters">
-          {["Tous","Frigo","Congélateur","Placard"].map(f => (
-            <button key={f} className={`filter-btn ${filter === f ? "active" : ""}`} onClick={() => { setFilter(f); setCatFilter("all"); }}>
-              {f === "Frigo" ? "🌡️ " : f === "Congélateur" ? "❄️ " : f === "Placard" ? "🗄️ " : ""}{f}
-            </button>
-          ))}
-        </div>
-        <div className="sort-dropdown" onClick={e => e.stopPropagation()}>
-          <button className={`btn-sort ${showSortMenu ? "open" : ""}`} onClick={() => setShowSortMenu(v => !v)}>↕ Tri</button>
-          {showSortMenu && (
-            <div className="sort-menu">
-              {SORT_OPTIONS.map(opt => (
-                <button key={opt.id} className={`sort-option ${sortBy === opt.id ? "active" : ""}`} onClick={() => { setSortBy(opt.id); setShowSortMenu(false); }}>
-                  {opt.icon} {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="filters" style={{marginBottom:"0.5rem"}}>
+        {["Tous","Frigo","Congélateur","Placard"].map(f => (
+          <button key={f} className={`filter-btn ${filter === f ? "active" : ""}`} onClick={() => { setFilter(f); setCatFilter("all"); }}>
+            {f === "Frigo" ? "🌡️ " : f === "Congélateur" ? "❄️ " : f === "Placard" ? "🗄️ " : ""}{f}
+          </button>
+        ))}
+      </div>
+      <div style={{marginBottom:"0.75rem", position:"relative"}} onClick={e => e.stopPropagation()}>
+        <button className={`btn-sort ${showSortMenu ? "open" : ""}`} style={{width:"100%", justifyContent:"center"}} onClick={() => setShowSortMenu(v => !v)}>
+          ↕ Tri — {SORT_OPTIONS.find(o => o.id === sortBy)?.label}
+        </button>
+        {showSortMenu && (
+          <div className="sort-menu" style={{width:"100%"}}>
+            {SORT_OPTIONS.map(opt => (
+              <button key={opt.id} className={`sort-option ${sortBy === opt.id ? "active" : ""}`} onClick={() => { setSortBy(opt.id); setShowSortMenu(false); }}>
+                {opt.icon} {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {presentCats.length > 1 && (
