@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
 const CATEGORIES = [
@@ -222,6 +222,11 @@ const style = `
   .btn-submit { flex: 2; font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; color: white; background: var(--terracotta); border: none; border-radius: 12px; padding: 0.9rem; cursor: pointer; box-shadow: 0 4px 14px rgba(186,130,106,0.4); transition: all 0.15s; }
   .btn-submit:hover { background: var(--terracotta-dark); transform: translateY(-1px); }
   .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-size: 2rem; }
+  .pull-indicator { text-align: center; padding: 0.75rem; font-size: 0.85rem; color: var(--text-muted); animation: fadeIn 0.2s ease; }
+  .btn-refresh { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.2rem; border-radius: 100px; transition: transform 0.3s; }
+  .btn-refresh:hover { transform: rotate(180deg); }
+  .btn-refresh.spinning { animation: spin 0.6s linear; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `;
 
 const daysLeft = (date) => {
@@ -376,14 +381,24 @@ function FridgeApp({ user, onBack }) {
   const [editingItem, setEditingItem] = useState(null);
   const [showNotifs, setShowNotifs] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const touchStartY = useRef(0);
 
   useEffect(() => { fetchItems(); }, []);
 
-  const fetchItems = async () => {
-    setLoadingItems(true);
+  const fetchItems = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoadingItems(true);
     const { data } = await supabase.from("items").select("*").order("expiry", { ascending: true });
     if (data) setItems(data);
-    setLoadingItems(false);
+    if (isRefresh) { setTimeout(() => setRefreshing(false), 400); }
+    else setLoadingItems(false);
+  };
+
+  const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
+  const handleTouchEnd = (e) => {
+    const diff = e.changedTouches[0].clientY - touchStartY.current;
+    if (diff > 80 && window.scrollY === 0) fetchItems(true);
   };
 
   useEffect(() => {
@@ -443,10 +458,11 @@ function FridgeApp({ user, onBack }) {
     });
 
   return (
-    <div className="page-app">
+    <div className="page-app" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div className="app-header">
         <h1>Mes réserves</h1>
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
+          <button className={`btn-refresh ${refreshing ? "spinning" : ""}`} onClick={() => fetchItems(true)} title="Actualiser">🔄</button>
           <button className="btn-notif" onClick={() => setShowNotifs(true)}>
             🔔
             {(soonToExpire.length + expired.length) > 0 && <span className="notif-badge">{soonToExpire.length + expired.length}</span>}
@@ -454,6 +470,8 @@ function FridgeApp({ user, onBack }) {
           <button className="btn-back" onClick={onBack}>← Accueil</button>
         </div>
       </div>
+
+      {refreshing && <div className="pull-indicator">Actualisation...</div>}
 
       {items.length > 0 && (
         <div className="stats-row">
