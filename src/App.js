@@ -384,7 +384,11 @@ function FridgeApp({ user, onBack }) {
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => {
+    fetchItems();
+    const interval = setInterval(() => fetchItems(true), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchItems = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
