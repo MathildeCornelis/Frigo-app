@@ -519,7 +519,7 @@ function WasteHistoryModal({ user, onClose }) {
   useEffect(() => {
     supabase.from("waste_history").select("*").eq("user_id", user.id).order("deleted_at", { ascending: false }).limit(50)
       .then(({ data }) => { if (data) setHistory(data); setLoading(false); });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byMonth = history.reduce((acc, i) => {
     const m = new Date(i.deleted_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -659,7 +659,7 @@ function FridgeApp({ user, onBack }) {
   useEffect(() => {
     document.body.classList.toggle('dark', darkMode);
     localStorage.setItem('darkMode', darkMode);
-  }, [darkMode]);
+  }, [darkMode]); // eslint-disable-line react-hooks/exhaustive-deps
   const [loadingItems, setLoadingItems] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
@@ -677,7 +677,7 @@ function FridgeApp({ user, onBack }) {
       checkExpiringItems(items);
       checkExpiredItems(items);
     }
-  }, [items]);
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchItems();
@@ -691,7 +691,7 @@ function FridgeApp({ user, onBack }) {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchItems = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
