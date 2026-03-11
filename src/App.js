@@ -34,11 +34,17 @@ function checkExpiringItems(items) {
     return d >= 0 && d <= 3;
   });
   if (expiring.length === 0) return;
-  const lastNotif = localStorage.getItem('lastNotifDate');
-  const today = new Date().toDateString();
-  if (lastNotif === today) return;
-  localStorage.setItem('lastNotifDate', today);
-  expiring.forEach(item => {
+
+  // On garde en mémoire les IDs déjà notifiés
+  const notified = JSON.parse(localStorage.getItem('notifiedItems') || '[]');
+  const toNotify = expiring.filter(i => !notified.includes(String(i.id)));
+  if (toNotify.length === 0) return;
+
+  // On sauvegarde les nouveaux IDs notifiés
+  const newNotified = [...notified, ...toNotify.map(i => String(i.id))];
+  localStorage.setItem('notifiedItems', JSON.stringify(newNotified));
+
+  toNotify.forEach(item => {
     const d = Math.floor((new Date(item.expiry) - new Date().setHours(0,0,0,0)) / 86400000);
     const body = d === 0 ? `${item.name} expire aujourd'hui !` : d === 1 ? `${item.name} expire demain !` : `${item.name} expire dans ${d} jours`;
     new Notification('⚠️ Mon Frigo', { body, icon: '/icon-192.png' });
