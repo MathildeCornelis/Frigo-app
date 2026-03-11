@@ -26,6 +26,22 @@ async function registerPush() {
   } catch(e) { console.log('Push registration failed:', e); }
 }
 
+function checkExpiredItems(items) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const expiredItems = items.filter(i => i.expiry && daysLeft(i.expiry) < 0);
+  if (expiredItems.length === 0) return;
+  const notified = JSON.parse(localStorage.getItem('notifiedExpiredItems') || '[]');
+  const toNotify = expiredItems.filter(i => !notified.includes(String(i.id)));
+  if (toNotify.length === 0) return;
+  const newNotified = [...notified, ...toNotify.map(i => String(i.id))];
+  localStorage.setItem('notifiedExpiredItems', JSON.stringify(newNotified));
+  toNotify.forEach(item => {
+    const d = Math.abs(daysLeft(item.expiry));
+    const body = d === 0 ? `${item.name} a expiré aujourd'hui !` : `${item.name} a expiré depuis ${d} jour${d > 1 ? 's' : ''} !`;
+    new Notification('🚫 Mon Frigo', { body, icon: '/icon-192.png' });
+  });
+}
+
 function checkExpiringItems(items) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const expiring = items.filter(i => {
@@ -496,6 +512,7 @@ function FridgeApp({ user, onBack }) {
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [expiryFilter, setExpiryFilter] = useState("all");
   const [loadingItems, setLoadingItems] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
@@ -505,7 +522,10 @@ function FridgeApp({ user, onBack }) {
   }, []);
 
   useEffect(() => {
-    if (items.length > 0) checkExpiringItems(items);
+    if (items.length > 0) {
+      checkExpiringItems(items);
+      checkExpiredItems(items);
+    }
   }, [items]);
 
   useEffect(() => {
@@ -591,6 +611,11 @@ function FridgeApp({ user, onBack }) {
   const filteredItems = locationFiltered
     .filter(i => catFilter === "all" || (i.category || "autre") === catFilter)
     .filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(i => {
+      if (expiryFilter === "soon") { const d = i.expiry ? daysLeft(i.expiry) : null; return d !== null && d >= 0 && d <= 3; }
+      if (expiryFilter === "expired") { const d = i.expiry ? daysLeft(i.expiry) : null; return d !== null && d < 0; }
+      return true;
+    })
     .sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "quantity") return b.quantity - a.quantity;
@@ -615,9 +640,18 @@ function FridgeApp({ user, onBack }) {
 
       {items.length > 0 && (
         <div className="stats-row">
-          <div className="stat-card"><div className="stat-num">{items.length}</div><div className="stat-label">produits</div></div>
-          <div className="stat-card"><div className="stat-num" style={{color: soonToExpire.length > 0 ? "#e67e22" : "var(--brown)"}}>{soonToExpire.length}</div><div className="stat-label">bientôt périmés</div></div>
-          <div className="stat-card"><div className="stat-num" style={{color: expired.length > 0 ? "#e74c3c" : "var(--brown)"}}>{expired.length}</div><div className="stat-label">expirés</div></div>
+          <div className="stat-card" style={{cursor:"pointer"}} onClick={() => setExpiryFilter("all")}>
+            <div className="stat-num" style={{color: expiryFilter === "all" ? "var(--terracotta)" : "var(--brown)"}}>{items.length}</div>
+            <div className="stat-label">produits</div>
+          </div>
+          <div className="stat-card" style={{cursor:"pointer"}} onClick={() => setExpiryFilter(expiryFilter === "soon" ? "all" : "soon")}>
+            <div className="stat-num" style={{color: soonToExpire.length > 0 ? "#e67e22" : "var(--brown)", textDecoration: expiryFilter === "soon" ? "underline" : "none"}}>{soonToExpire.length}</div>
+            <div className="stat-label">bientôt périmés</div>
+          </div>
+          <div className="stat-card" style={{cursor:"pointer"}} onClick={() => setExpiryFilter(expiryFilter === "expired" ? "all" : "expired")}>
+            <div className="stat-num" style={{color: expired.length > 0 ? "#e74c3c" : "var(--brown)", textDecoration: expiryFilter === "expired" ? "underline" : "none"}}>{expired.length}</div>
+            <div className="stat-label">expirés</div>
+          </div>
         </div>
       )}
 
