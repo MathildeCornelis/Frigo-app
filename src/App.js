@@ -96,7 +96,10 @@ const style = `
     --text-muted: #8B6355; --white: #FEFAF7;
     --shadow: 0 4px 24px rgba(92,61,46,0.12); --shadow-lg: 0 12px 40px rgba(92,61,46,0.18);
   }
-  body { font-family: 'DM Sans', sans-serif; background-color: var(--cream); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'DM Sans', sans-serif; background-color: var(--cream); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
+  body.dark { --cream: #1a1212; --white: #241818; --text: #F5E4D1; --text-muted: #c9a898; --brown: #e8c4ad; --terracotta-light: #3d2020; --shadow: 0 4px 24px rgba(0,0,0,0.4); --shadow-lg: 0 12px 40px rgba(0,0,0,0.5); }
+  .btn-dark { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.2rem 0.3rem; border-radius: 8px; transition: transform 0.2s; }
+  .btn-dark:hover { transform: scale(1.15); }
 
   /* AUTH */
   .page-auth {
@@ -234,6 +237,13 @@ const style = `
   .fresh .item-dot { background: #2ecc71; } .medium .item-dot { background: #f39c12; } .soon .item-dot { background: #e67e22; } .expired .item-dot { background: #e74c3c; }
   .item-cat-icon { font-size: 1.3rem; flex-shrink: 0; }
   .item-img { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: rgba(92,61,46,0.07); }
+  .item-wrapper { position: relative; overflow: hidden; border-radius: 16px; margin-bottom: 0.75rem; }
+  .item-swipe-bg { position: absolute; inset: 0; background: #e74c3c; display: flex; align-items: center; justify-content: flex-end; padding-right: 1.5rem; border-radius: 16px; }
+  .item-swipe-bg span { color: white; font-size: 1.4rem; }
+  .item-card { position: relative; transition: transform 0.15s ease; touch-action: pan-y; margin-bottom: 0; border-radius: 16px; }
+  .toast-undo { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--brown); color: var(--white); padding: 0.75rem 1.25rem; border-radius: 100px; display: flex; align-items: center; gap: 0.75rem; font-size: 0.9rem; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 9999; animation: slideUp 0.3s ease; }
+  .toast-undo button { background: var(--terracotta-light); border: none; color: var(--text); font-family: "DM Sans",sans-serif; font-weight: 600; font-size: 0.85rem; border-radius: 100px; padding: 0.3rem 0.75rem; cursor: pointer; }
+  @keyframes slideUp { from { opacity:0; transform: translate(-50%, 20px); } to { opacity:1; transform: translate(-50%, 0); } }
   .item-info { flex: 1; min-width: 0; }
   .item-name { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 100px; margin-left: 0.4rem; }
@@ -502,6 +512,50 @@ function ItemForm({ initial, onSave, onCancel, title }) {
   );
 }
 
+function WasteHistoryModal({ user, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("waste_history").select("*").eq("user_id", user.id).order("deleted_at", { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setHistory(data); setLoading(false); });
+  }, []);
+
+  const byMonth = history.reduce((acc, i) => {
+    const m = new Date(i.deleted_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    if (!acc[m]) acc[m] = [];
+    acc[m].push(i);
+    return acc;
+  }, {});
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-handle" />
+        <h2>📊 Historique de gaspillage</h2>
+        {loading ? <div style={{textAlign:"center",padding:"2rem"}}>Chargement...</div> :
+        history.length === 0 ? (
+          <div className="notif-empty"><span>🌱</span><p>Aucun gaspillage enregistré !<br />Bravo !</p></div>
+        ) : (
+          Object.entries(byMonth).map(([month, items]) => (
+            <div key={month} style={{marginBottom:"1.25rem"}}>
+              <div style={{fontSize:"0.8rem",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:"0.5rem"}}>{month} — {items.length} produit{items.length > 1 ? "s" : ""}</div>
+              {items.map(i => (
+                <div key={i.id} style={{display:"flex",alignItems:"center",gap:"0.75rem",background:"var(--white)",borderRadius:"10px",padding:"0.6rem 0.9rem",marginBottom:"0.4rem",boxShadow:"var(--shadow)"}}>
+                  <span style={{fontSize:"1.1rem"}}>{getCategoryIcon(i.category)}</span>
+                  <span style={{flex:1,fontSize:"0.9rem",fontWeight:"500"}}>{i.name}</span>
+                  <span style={{fontSize:"0.75rem",color: i.reason === "périmé" ? "#e74c3c" : "var(--text-muted)",fontWeight:"600"}}>{i.reason}</span>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+        <div className="modal-footer"><button className="btn-cancel" onClick={onClose}>Fermer</button></div>
+      </div>
+    </div>
+  );
+}
+
 function ShoppingListModal({ onClose }) {
   const [list, setList] = useState(() => JSON.parse(localStorage.getItem('shoppingList') || '[]'));
 
@@ -526,7 +580,13 @@ function ShoppingListModal({ onClose }) {
   const addManual = () => {
     const name = prompt("Nom du produit à ajouter :");
     if (!name) return;
-    const updated = [...list, { id: Date.now(), name: name.charAt(0).toUpperCase() + name.slice(1), category: "autre", checked: false }];
+    const updated = [...list, { id: Date.now(), name: name.charAt(0).toUpperCase() + name.slice(1), category: "autre", checked: false, quantity: 1 }];
+    setList(updated);
+    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  };
+
+  const changeQty = (id, delta) => {
+    const updated = list.map(i => i.id === id ? { ...i, quantity: Math.max(1, (i.quantity || 1) + delta) } : i);
     setList(updated);
     localStorage.setItem('shoppingList', JSON.stringify(updated));
   };
@@ -547,6 +607,11 @@ function ShoppingListModal({ onClose }) {
               <div key={item.id} className={`shopping-item ${item.checked ? "checked" : ""}`}>
                 <input type="checkbox" checked={item.checked} onChange={() => toggleItem(item.id)} />
                 <span className="shopping-item-name">{getCategoryIcon(item.category)} {item.name}</span>
+                <div style={{display:"flex",alignItems:"center",gap:"0.3rem",flexShrink:0}}>
+                  <button onClick={() => changeQty(item.id, -1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                  <span style={{fontSize:"0.85rem",fontWeight:"600",minWidth:"18px",textAlign:"center"}}>{item.quantity || 1}</span>
+                  <button onClick={() => changeQty(item.id, 1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                </div>
                 <button className="btn-delete" onClick={() => removeItem(item.id)}>🗑</button>
               </div>
             ))}
@@ -588,9 +653,20 @@ function FridgeApp({ user, onBack }) {
   const [editingItem, setEditingItem] = useState(null);
   const [expiryFilter, setExpiryFilter] = useState("all");
   const [showShoppingList, setShowShoppingList] = useState(false);
+  const [showWasteHistory, setShowWasteHistory] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', darkMode);
+    localStorage.setItem('darkMode', darkMode);
+  }, [darkMode]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
+  const [undoItem, setUndoItem] = useState(null);
+  const undoTimer = useRef(null);
+  const swipeStartX = useRef(0);
+  const swipeEl = useRef(null);
 
   useEffect(() => {
     registerPush();
@@ -669,7 +745,7 @@ function FridgeApp({ user, onBack }) {
         // Save to shopping list in localStorage
         const list = JSON.parse(localStorage.getItem('shoppingList') || '[]');
         if (!list.find(i => i.name === item.name)) {
-          list.push({ id: Date.now(), name: item.name, category: item.category, checked: false });
+          list.push({ id: Date.now(), name: item.name, category: item.category, checked: false, quantity: 1 });
           localStorage.setItem('shoppingList', JSON.stringify(list));
         }
       }
@@ -682,9 +758,55 @@ function FridgeApp({ user, onBack }) {
     }
   };
 
-  const deleteItem = async (id) => {
-    await supabase.from("items").delete().eq("id", id);
-    setItems(prev => prev.filter(i => i.id !== id));
+  const deleteItem = async (id, withUndo = false) => {
+    const item = items.find(i => i.id === id);
+    if (withUndo) {
+      setItems(prev => prev.filter(i => i.id !== id));
+      setUndoItem(item);
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(async () => {
+        await supabase.from("items").delete().eq("id", id);
+        if (item.reorder || (item.expiry && daysLeft(item.expiry) < 0)) {
+          await supabase.from("waste_history").insert([{ id: Date.now(), user_id: user.id, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: item.expiry && daysLeft(item.expiry) < 0 ? 'périmé' : 'consommé' }]);
+        }
+        setUndoItem(null);
+      }, 3000);
+    } else {
+      await supabase.from("items").delete().eq("id", id);
+      setItems(prev => prev.filter(i => i.id !== id));
+    }
+  };
+
+  const undoDelete = async () => {
+    if (!undoItem) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    const { data } = await supabase.from("items").insert([undoItem]).select();
+    if (data) setItems(prev => [...prev, ...data]);
+    setUndoItem(null);
+  };
+
+  const handleSwipeStart = (e, id) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeEl.current = id;
+  };
+
+  const handleSwipeMove = (e) => {
+    const diff = e.touches[0].clientX - swipeStartX.current;
+    if (diff < 0) {
+      const el = document.getElementById(`item-${swipeEl.current}`);
+      if (el) el.style.transform = `translateX(${Math.max(diff, -100)}px)`;
+    }
+  };
+
+  const handleSwipeEnd = (e) => {
+    const diff = e.changedTouches[0].clientX - swipeStartX.current;
+    const el = document.getElementById(`item-${swipeEl.current}`);
+    if (diff < -80) {
+      if (el) el.style.transform = 'translateX(-100%)';
+      setTimeout(() => deleteItem(swipeEl.current, true), 150);
+    } else {
+      if (el) el.style.transform = 'translateX(0)';
+    }
   };
 
   const soonToExpire = items.filter(i => i.expiry && daysLeft(i.expiry) >= 0 && daysLeft(i.expiry) <= 3);
@@ -710,8 +832,10 @@ function FridgeApp({ user, onBack }) {
       <div className="app-header">
         <h1>Mes réserves</h1>
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
+          <button className="btn-dark" onClick={() => setDarkMode(v => !v)}>{darkMode ? "☀️" : "🌙"}</button>
           <button className={`btn-refresh ${refreshing ? "spinning" : ""}`} onClick={() => fetchItems(true)} title="Actualiser">🔄</button>
           <button className="btn-notif" onClick={() => setShowShoppingList(true)}>🛒</button>
+          <button className="btn-notif" onClick={() => setShowWasteHistory(true)}>📊</button>
           <button className="btn-back" onClick={onBack}>← Accueil</button>
         </div>
       </div>
@@ -786,30 +910,36 @@ function FridgeApp({ user, onBack }) {
             const remaining = item.expiry ? daysLeft(item.expiry) : null;
             const status = item.expiry ? getStatus(remaining) : "fresh";
             return (
-              <li key={item.id} className={`item-card ${status}`}>
-                <div className="item-dot" />
-                {item.image_url
-  ? <img className="item-img" src={item.image_url} alt={item.name} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
-  : null}
-<div className="item-cat-icon" style={{display: item.image_url ? "none" : "block"}}>{getCategoryIcon(item.category || "autre")}</div>
-                <div className="item-info">
-                  <div className="item-name">{item.name}{item.expiry && <span className="item-badge">{getBadgeLabel(remaining)}</span>}</div>
-                  <div className="item-qty">{item.quantity} {item.unit}</div>
-                  {item.expiry && <div className="item-meta">Péremption : {formatDate(item.expiry)}</div>}
-                </div>
-                <div className="item-actions">
-                  <div className="item-action-row">
-                    <span className="item-location">{item.location === "Frigo" ? "🌡️" : item.location === "Congélateur" ? "❄️" : "🗄️"}</span>
-                    <button className="btn-edit" onClick={() => setEditingItem(item)}>✏️</button>
-                    <button className="btn-delete" onClick={() => deleteItem(item.id)}>🗑</button>
+              <div key={item.id} className="item-wrapper">
+                <div className="item-swipe-bg"><span>🗑</span></div>
+                <li id={`item-${item.id}`} className={`item-card ${status}`}
+                  onTouchStart={e => handleSwipeStart(e, item.id)}
+                  onTouchMove={handleSwipeMove}
+                  onTouchEnd={handleSwipeEnd}>
+                  <div className="item-dot" />
+                  {item.image_url
+                    ? <img className="item-img" src={item.image_url} alt={item.name} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
+                    : null}
+                  <div className="item-cat-icon" style={{display: item.image_url ? "none" : "block"}}>{getCategoryIcon(item.category || "autre")}</div>
+                  <div className="item-info">
+                    <div className="item-name">{item.name}{item.expiry && <span className="item-badge">{getBadgeLabel(remaining)}</span>}</div>
+                    <div className="item-qty">{item.quantity} {item.unit}</div>
+                    {item.expiry && <div className="item-meta">Péremption : {formatDate(item.expiry)}</div>}
                   </div>
-                  <div className="qty-controls">
-                    <button className="btn-consume" onClick={() => decreaseQuantity(item.id)}>−</button>
-                    <span className="qty-value">{item.quantity}</span>
-                    <button className="btn-consume" onClick={() => increaseQuantity(item.id)}>+</button>
+                  <div className="item-actions">
+                    <div className="item-action-row">
+                      <span className="item-location">{item.location === "Frigo" ? "🌡️" : item.location === "Congélateur" ? "❄️" : "🗄️"}</span>
+                      <button className="btn-edit" onClick={() => setEditingItem(item)}>✏️</button>
+                      <button className="btn-delete" onClick={() => deleteItem(item.id, true)}>🗑</button>
+                    </div>
+                    <div className="qty-controls">
+                      <button className="btn-consume" onClick={() => decreaseQuantity(item.id)}>−</button>
+                      <span className="qty-value">{item.quantity}</span>
+                      <button className="btn-consume" onClick={() => increaseQuantity(item.id)}>+</button>
+                    </div>
                   </div>
-                </div>
-              </li>
+                </li>
+              </div>
             );
           })}
         </ul>
@@ -831,6 +961,17 @@ function FridgeApp({ user, onBack }) {
             <ItemForm initial={editingItem} onSave={saveEdit} onCancel={() => setEditingItem(null)} title="Enregistrer" />
           </div>
         </div>
+      )}
+
+      {undoItem && (
+        <div className="toast-undo">
+          <span>🗑 {undoItem.name} supprimé</span>
+          <button onClick={undoDelete}>Annuler</button>
+        </div>
+      )}
+
+      {showWasteHistory && (
+        <WasteHistoryModal user={user} onClose={() => setShowWasteHistory(false)} />
       )}
 
       {showShoppingList && (
