@@ -2,6 +2,49 @@ import { useState, useEffect, useRef } from "react";
 import { BrowserMultiFormatReader } from "@zxing/library";
 import { supabase } from "./supabase";
 
+
+const VAPID_PUBLIC_KEY = "BBd4bxTCJw5gphITzIfHm1DpS4S0VAG7Wiy67HJPCs-87W4Gt9SWuaAtZpYr--3OuFoHGyDRN-pMQ0oyCZWykPQ";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function registerPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    return sub;
+  } catch(e) { console.log('Push registration failed:', e); }
+}
+
+function checkExpiringItems(items) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const expiring = items.filter(i => {
+    if (!i.expiry) return false;
+    const d = Math.floor((new Date(i.expiry) - new Date().setHours(0,0,0,0)) / 86400000);
+    return d >= 0 && d <= 3;
+  });
+  if (expiring.length === 0) return;
+  const lastNotif = localStorage.getItem('lastNotifDate');
+  const today = new Date().toDateString();
+  if (lastNotif === today) return;
+  localStorage.setItem('lastNotifDate', today);
+  expiring.forEach(item => {
+    const d = Math.floor((new Date(item.expiry) - new Date().setHours(0,0,0,0)) / 86400000);
+    const body = d === 0 ? `${item.name} expire aujourd'hui !` : d === 1 ? `${item.name} expire demain !` : `${item.name} expire dans ${d} jours`;
+    new Notification('⚠️ Mon Frigo', { body, icon: '/icon-192.png' });
+  });
+}
+
 const CATEGORIES = [
   { id: "laitier", label: "Laitier", icon: "🥛" },
   { id: "viande", label: "Viande", icon: "🥩" },
@@ -450,6 +493,14 @@ function FridgeApp({ user, onBack }) {
   const [loadingItems, setLoadingItems] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
+
+  useEffect(() => {
+    registerPush();
+  }, []);
+
+  useEffect(() => {
+    if (items.length > 0) checkExpiringItems(items);
+  }, [items]);
 
   useEffect(() => {
     fetchItems();
