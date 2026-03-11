@@ -558,37 +558,62 @@ function WasteHistoryModal({ user, onClose }) {
 
 function ShoppingListModal({ onClose }) {
   const [list, setList] = useState(() => JSON.parse(localStorage.getItem('shoppingList') || '[]'));
+  const [undoShop, setUndoShop] = useState(null);
+  const undoShopTimer = useRef(null);
+  const swipeShopStart = useRef(0);
+  const swipeShopEl = useRef(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newItem, setNewItem] = useState({ name: '', category: 'autre', quantity: 1 });
 
-  const toggleItem = (id) => {
-    const updated = list.map(i => i.id === id ? { ...i, checked: !i.checked } : i);
-    setList(updated);
-    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  const save = (updated) => { setList(updated); localStorage.setItem('shoppingList', JSON.stringify(updated)); };
+
+  const toggleItem = (id) => save(list.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
+
+  const removeItem = (id, withUndo = false) => {
+    const item = list.find(i => i.id === id);
+    save(list.filter(i => i.id !== id));
+    if (withUndo) {
+      setUndoShop(item);
+      if (undoShopTimer.current) clearTimeout(undoShopTimer.current);
+      undoShopTimer.current = setTimeout(() => setUndoShop(null), 3000);
+    }
   };
 
-  const removeItem = (id) => {
-    const updated = list.filter(i => i.id !== id);
-    setList(updated);
-    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  const undoShopDelete = () => {
+    if (!undoShop) return;
+    if (undoShopTimer.current) clearTimeout(undoShopTimer.current);
+    save([...list, undoShop]);
+    setUndoShop(null);
   };
 
-  const clearChecked = () => {
-    const updated = list.filter(i => !i.checked);
-    setList(updated);
-    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  const clearChecked = () => save(list.filter(i => !i.checked));
+
+  const changeQty = (id, delta) => save(list.map(i => i.id === id ? { ...i, quantity: Math.max(1, (i.quantity || 1) + delta) } : i));
+
+  const handleSwipeStart = (e, id) => { swipeShopStart.current = e.touches[0].clientX; swipeShopEl.current = id; };
+  const handleSwipeMove = (e) => {
+    const diff = e.touches[0].clientX - swipeShopStart.current;
+    if (diff < 0) {
+      const el = document.getElementById(`shop-${swipeShopEl.current}`);
+      if (el) el.style.transform = `translateX(${Math.max(diff, -100)}px)`;
+    }
+  };
+  const handleSwipeEnd = (e) => {
+    const diff = e.changedTouches[0].clientX - swipeShopStart.current;
+    const el = document.getElementById(`shop-${swipeShopEl.current}`);
+    if (diff < -80) {
+      if (el) el.style.transform = 'translateX(-100%)';
+      setTimeout(() => removeItem(swipeShopEl.current, true), 150);
+    } else {
+      if (el) el.style.transform = 'translateX(0)';
+    }
   };
 
-  const addManual = () => {
-    const name = prompt("Nom du produit à ajouter :");
-    if (!name) return;
-    const updated = [...list, { id: Date.now(), name: name.charAt(0).toUpperCase() + name.slice(1), category: "autre", checked: false, quantity: 1 }];
-    setList(updated);
-    localStorage.setItem('shoppingList', JSON.stringify(updated));
-  };
-
-  const changeQty = (id, delta) => {
-    const updated = list.map(i => i.id === id ? { ...i, quantity: Math.max(1, (i.quantity || 1) + delta) } : i);
-    setList(updated);
-    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  const submitAdd = () => {
+    if (!newItem.name) return;
+    save([...list, { id: Date.now(), name: newItem.name.charAt(0).toUpperCase() + newItem.name.slice(1), category: newItem.category, checked: false, quantity: newItem.quantity }]);
+    setNewItem({ name: '', category: 'autre', quantity: 1 });
+    setShowAddForm(false);
   };
 
   return (
@@ -596,34 +621,67 @@ function ShoppingListModal({ onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
         <h2>🛒 Liste de courses</h2>
-        {list.length === 0 ? (
-          <div className="notif-empty">
-            <span>🛒</span>
-            <p>Ta liste est vide !<br />Les produits épuisés marqués apparaîtront ici.</p>
+
+        {showAddForm ? (
+          <div style={{marginBottom:"1rem"}}>
+            <div className="field"><label>Nom du produit</label><input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="ex: Yaourts nature" autoFocus /></div>
+            <div className="field"><label>Catégorie</label>
+              <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+              </select>
+            </div>
+            <div className="field"><label>Quantité</label>
+              <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                <button type="button" onClick={() => setNewItem({...newItem, quantity: Math.max(1, newItem.quantity - 1)})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"32px",height:"32px",cursor:"pointer",fontSize:"1.1rem"}}>−</button>
+                <span style={{fontWeight:"600",fontSize:"1rem",minWidth:"24px",textAlign:"center"}}>{newItem.quantity}</span>
+                <button type="button" onClick={() => setNewItem({...newItem, quantity: newItem.quantity + 1})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"32px",height:"32px",cursor:"pointer",fontSize:"1.1rem"}}>+</button>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowAddForm(false)}>Annuler</button>
+              <button className="btn-submit" onClick={submitAdd}>Ajouter</button>
+            </div>
           </div>
         ) : (
           <>
-            {list.map(item => (
-              <div key={item.id} className={`shopping-item ${item.checked ? "checked" : ""}`}>
-                <input type="checkbox" checked={item.checked} onChange={() => toggleItem(item.id)} />
-                <span className="shopping-item-name">{getCategoryIcon(item.category)} {item.name}</span>
-                <div style={{display:"flex",alignItems:"center",gap:"0.3rem",flexShrink:0}}>
-                  <button onClick={() => changeQty(item.id, -1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
-                  <span style={{fontSize:"0.85rem",fontWeight:"600",minWidth:"18px",textAlign:"center"}}>{item.quantity || 1}</span>
-                  <button onClick={() => changeQty(item.id, 1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-                </div>
-                <button className="btn-delete" onClick={() => removeItem(item.id)}>🗑</button>
-              </div>
-            ))}
-            {list.some(i => i.checked) && (
-              <button className="btn-clear-list" onClick={clearChecked}>🗑 Supprimer les articles cochés</button>
+            {list.length === 0 ? (
+              <div className="notif-empty"><span>🛒</span><p>Ta liste est vide !<br />Les produits épuisés marqués apparaîtront ici.</p></div>
+            ) : (
+              <>
+                {list.map(item => (
+                  <div key={item.id} className="item-wrapper" style={{marginBottom:"0.5rem"}}>
+                    <div className="item-swipe-bg"><span>🗑</span></div>
+                    <div id={`shop-${item.id}`} className={`shopping-item ${item.checked ? "checked" : ""}`} style={{margin:0,transition:"transform 0.15s ease"}}
+                      onTouchStart={e => handleSwipeStart(e, item.id)}
+                      onTouchMove={handleSwipeMove}
+                      onTouchEnd={handleSwipeEnd}>
+                      <input type="checkbox" checked={item.checked} onChange={() => toggleItem(item.id)} />
+                      <span className="shopping-item-name">{getCategoryIcon(item.category)} {item.name}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:"0.3rem",flexShrink:0}}>
+                        <button onClick={() => changeQty(item.id, -1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                        <span style={{fontSize:"0.85rem",fontWeight:"600",minWidth:"18px",textAlign:"center"}}>{item.quantity || 1}</span>
+                        <button onClick={() => changeQty(item.id, 1)} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"6px",width:"24px",height:"24px",cursor:"pointer",fontSize:"0.9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {list.some(i => i.checked) && (
+                  <button className="btn-clear-list" onClick={clearChecked}>🗑 Supprimer les articles cochés</button>
+                )}
+              </>
             )}
+            {undoShop && (
+              <div className="toast-undo" style={{position:"relative",bottom:"auto",left:"auto",transform:"none",marginTop:"0.75rem",borderRadius:"12px"}}>
+                <span>🗑 {undoShop.name} supprimé</span>
+                <button onClick={undoShopDelete}>Annuler</button>
+              </div>
+            )}
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={onClose}>Fermer</button>
+              <button className="btn-submit" onClick={() => setShowAddForm(true)}>+ Ajouter</button>
+            </div>
           </>
         )}
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Fermer</button>
-          <button className="btn-submit" onClick={addManual}>+ Ajouter</button>
-        </div>
       </div>
     </div>
   );
@@ -777,11 +835,10 @@ function FridgeApp({ user, onBack }) {
     }
   };
 
-  const undoDelete = async () => {
+  const undoDelete = () => {
     if (!undoItem) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
-    const { data } = await supabase.from("items").insert([undoItem]).select();
-    if (data) setItems(prev => [...prev, ...data]);
+    setItems(prev => [...prev, undoItem]);
     setUndoItem(null);
   };
 
