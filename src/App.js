@@ -289,6 +289,13 @@ const style = `
   .btn-submit { flex: 2; font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; color: white; background: var(--terracotta); border: none; border-radius: 12px; padding: 0.9rem; cursor: pointer; box-shadow: 0 4px 14px rgba(186,130,106,0.4); transition: all 0.15s; }
   .btn-submit:hover { background: var(--terracotta-dark); transform: translateY(-1px); }
   .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-size: 2rem; }
+  .shopping-item { display: flex; align-items: center; gap: 0.75rem; background: var(--white); border-radius: 12px; padding: 0.85rem 1rem; box-shadow: var(--shadow); margin-bottom: 0.6rem; }
+  .shopping-item.checked { opacity: 0.5; }
+  .shopping-item input[type="checkbox"] { width: 20px; height: 20px; accentColor: var(--terracotta); cursor: pointer; flex-shrink: 0; accent-color: var(--terracotta); }
+  .shopping-item-name { flex: 1; font-size: 0.95rem; font-weight: 500; color: var(--text); }
+  .shopping-item.checked .shopping-item-name { text-decoration: line-through; color: var(--text-muted); }
+  .btn-clear-list { width: 100%; font-family: "DM Sans", sans-serif; font-size: 0.9rem; font-weight: 500; color: #e74c3c; background: #fde8e8; border: none; border-radius: 12px; padding: 0.75rem; cursor: pointer; margin-top: 1rem; transition: background 0.15s; }
+  .btn-clear-list:hover { background: #fca5a5; }
   .btn-scan { font-family: "DM Sans", sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--terracotta); background: rgba(186,130,106,0.1); border: 1.5px solid rgba(186,130,106,0.3); border-radius: 10px; padding: 0.6rem 0.9rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 0.4rem; width: 100%; justify-content: center; margin-bottom: 0.75rem; }
   .btn-scan:hover { background: rgba(186,130,106,0.2); border-color: var(--terracotta); }
   .scanner-wrap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 0.75rem; }
@@ -467,6 +474,10 @@ function ItemForm({ initial, onSave, onCancel, title }) {
         <div className="field"><label>Unité</label><select name="unit" value={form.unit} onChange={handleChange}><option>pièce</option><option>g</option><option>kg</option><option>ml</option><option>L</option></select></div>
       </div>
       <div className="field"><label>Localisation</label><select name="location" value={form.location} onChange={handleChange}><option>Frigo</option><option>Congélateur</option><option>Placard</option></select></div>
+      <div className="field" style={{display:"flex",alignItems:"center",gap:"0.6rem",background:"rgba(92,61,46,0.04)",borderRadius:"10px",padding:"0.7rem 0.9rem"}}>
+        <input type="checkbox" id="reorder" name="reorder" checked={!!form.reorder} onChange={e => setForm({...form, reorder: e.target.checked})} style={{width:"18px",height:"18px",accentColor:"var(--terracotta)",cursor:"pointer",flexShrink:0}} />
+        <label htmlFor="reorder" style={{fontSize:"0.9rem",color:"var(--text)",cursor:"pointer",textTransform:"none",letterSpacing:"normal",fontWeight:"500",marginBottom:0}}>🛒 Ajouter à la liste de courses quand épuisé</label>
+      </div>
       <div className="field">
         <label>Date de péremption</label>
         <div className="date-row">
@@ -486,6 +497,68 @@ function ItemForm({ initial, onSave, onCancel, title }) {
         <button type="submit" className="btn-submit">{title}</button>
       </div>
     </form>
+  );
+}
+
+function ShoppingListModal({ onClose }) {
+  const [list, setList] = useState(() => JSON.parse(localStorage.getItem('shoppingList') || '[]'));
+
+  const toggleItem = (id) => {
+    const updated = list.map(i => i.id === id ? { ...i, checked: !i.checked } : i);
+    setList(updated);
+    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  };
+
+  const removeItem = (id) => {
+    const updated = list.filter(i => i.id !== id);
+    setList(updated);
+    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  };
+
+  const clearChecked = () => {
+    const updated = list.filter(i => !i.checked);
+    setList(updated);
+    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  };
+
+  const addManual = () => {
+    const name = prompt("Nom du produit à ajouter :");
+    if (!name) return;
+    const updated = [...list, { id: Date.now(), name: name.charAt(0).toUpperCase() + name.slice(1), category: "autre", checked: false }];
+    setList(updated);
+    localStorage.setItem('shoppingList', JSON.stringify(updated));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-handle" />
+        <h2>🛒 Liste de courses</h2>
+        {list.length === 0 ? (
+          <div className="notif-empty">
+            <span>🛒</span>
+            <p>Ta liste est vide !<br />Les produits épuisés marqués apparaîtront ici.</p>
+          </div>
+        ) : (
+          <>
+            {list.map(item => (
+              <div key={item.id} className={`shopping-item ${item.checked ? "checked" : ""}`}>
+                <input type="checkbox" checked={item.checked} onChange={() => toggleItem(item.id)} />
+                <span className="shopping-item-name">{getCategoryIcon(item.category)} {item.name}</span>
+                <button className="btn-delete" onClick={() => removeItem(item.id)}>🗑</button>
+              </div>
+            ))}
+            {list.some(i => i.checked) && (
+              <button className="btn-clear-list" onClick={clearChecked}>🗑 Supprimer les articles cochés</button>
+            )}
+          </>
+        )}
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={onClose}>Fermer</button>
+          <button className="btn-submit" onClick={addManual}>+ Ajouter</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -513,6 +586,7 @@ function FridgeApp({ user, onBack }) {
   const [editingItem, setEditingItem] = useState(null);
   const [showNotifs, setShowNotifs] = useState(false);
   const [expiryFilter, setExpiryFilter] = useState("all");
+  const [showShoppingList, setShowShoppingList] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const touchStartY = useRef(0);
@@ -590,6 +664,14 @@ function FridgeApp({ user, onBack }) {
   const decreaseQuantity = async (id) => {
     const item = items.find(i => i.id === id);
     if (item.quantity <= 1) {
+      if (item.reorder) {
+        // Save to shopping list in localStorage
+        const list = JSON.parse(localStorage.getItem('shoppingList') || '[]');
+        if (!list.find(i => i.name === item.name)) {
+          list.push({ id: Date.now(), name: item.name, category: item.category, checked: false });
+          localStorage.setItem('shoppingList', JSON.stringify(list));
+        }
+      }
       await supabase.from("items").delete().eq("id", id);
       setItems(prev => prev.filter(i => i.id !== id));
     } else {
@@ -628,6 +710,7 @@ function FridgeApp({ user, onBack }) {
         <h1>Mes réserves</h1>
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
           <button className={`btn-refresh ${refreshing ? "spinning" : ""}`} onClick={() => fetchItems(true)} title="Actualiser">🔄</button>
+          <button className="btn-notif" onClick={() => setShowShoppingList(true)}>🛒</button>
           <button className="btn-notif" onClick={() => setShowNotifs(true)}>
             🔔
             {(soonToExpire.length + expired.length) > 0 && <span className="notif-badge">{soonToExpire.length + expired.length}</span>}
@@ -751,6 +834,10 @@ function FridgeApp({ user, onBack }) {
             <ItemForm initial={editingItem} onSave={saveEdit} onCancel={() => setEditingItem(null)} title="Enregistrer" />
           </div>
         </div>
+      )}
+
+      {showShoppingList && (
+        <ShoppingListModal onClose={() => setShowShoppingList(false)} />
       )}
 
       {showNotifs && (
