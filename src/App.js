@@ -630,13 +630,6 @@ function ShoppingListModal({ onClose }) {
                 {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
               </select>
             </div>
-            <div className="field"><label>Quantité</label>
-              <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
-                <button type="button" onClick={() => setNewItem({...newItem, quantity: Math.max(1, newItem.quantity - 1)})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"32px",height:"32px",cursor:"pointer",fontSize:"1.1rem"}}>−</button>
-                <span style={{fontWeight:"600",fontSize:"1rem",minWidth:"24px",textAlign:"center"}}>{newItem.quantity}</span>
-                <button type="button" onClick={() => setNewItem({...newItem, quantity: newItem.quantity + 1})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"32px",height:"32px",cursor:"pointer",fontSize:"1.1rem"}}>+</button>
-              </div>
-            </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowAddForm(false)}>Annuler</button>
               <button className="btn-submit" onClick={submitAdd}>Ajouter</button>
@@ -649,9 +642,12 @@ function ShoppingListModal({ onClose }) {
             ) : (
               <>
                 {list.map(item => (
-                  <div key={item.id} className="item-wrapper" style={{marginBottom:"0.5rem"}}>
-                    <div className="item-swipe-bg"><span>🗑</span></div>
-                    <div id={`shop-${item.id}`} className={`shopping-item ${item.checked ? "checked" : ""}`} style={{margin:0,transition:"transform 0.15s ease"}}
+                  <div key={item.id} style={{position:"relative",overflow:"hidden",borderRadius:"12px",marginBottom:"0.5rem"}}>
+                    <div style={{position:"absolute",inset:0,background:"#e74c3c",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:"1.25rem",borderRadius:"12px"}}>
+                      <span style={{color:"white",fontSize:"1.3rem"}}>🗑</span>
+                    </div>
+                    <div id={`shop-${item.id}`} className={`shopping-item ${item.checked ? "checked" : ""}`}
+                      style={{margin:0,position:"relative",background:"var(--white)",transition:"transform 0.15s ease",borderRadius:"12px"}}
                       onTouchStart={e => handleSwipeStart(e, item.id)}
                       onTouchMove={handleSwipeMove}
                       onTouchEnd={handleSwipeEnd}>
