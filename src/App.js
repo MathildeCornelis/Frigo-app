@@ -168,6 +168,7 @@ const style = `
   .item-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .fresh .item-dot { background: #2ecc71; } .medium .item-dot { background: #f39c12; } .soon .item-dot { background: #e67e22; } .expired .item-dot { background: #e74c3c; }
   .item-cat-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .item-img { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: rgba(92,61,46,0.07); }
   .item-info { flex: 1; min-width: 0; }
   .item-name { font-weight: 600; font-size: 0.95rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 100px; margin-left: 0.4rem; }
@@ -350,7 +351,8 @@ function ItemForm({ initial, onSave, onCancel, title }) {
             if (data.status === 1) {
               const p = data.product;
               const name = p.product_name_fr || p.product_name || "";
-              setForm(f => ({ ...f, name: name.charAt(0).toUpperCase() + name.slice(1) }));
+              const image_url = p.image_front_small_url || p.image_url || "";
+              setForm(f => ({ ...f, name: name.charAt(0).toUpperCase() + name.slice(1), image_url }));
               setScanStatus(`✅ Produit trouvé : ${name}`);
             } else {
               setScanStatus("❌ Produit non trouvé, entre le nom manuellement.");
@@ -615,7 +617,10 @@ function FridgeApp({ user, onBack }) {
             return (
               <li key={item.id} className={`item-card ${status}`}>
                 <div className="item-dot" />
-                <div className="item-cat-icon">{getCategoryIcon(item.category || "autre")}</div>
+                {item.image_url
+  ? <img className="item-img" src={item.image_url} alt={item.name} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
+  : null}
+<div className="item-cat-icon" style={{display: item.image_url ? "none" : "block"}}>{getCategoryIcon(item.category || "autre")}</div>
                 <div className="item-info">
                   <div className="item-name">{item.name}{item.expiry && <span className="item-badge">{getBadgeLabel(remaining)}</span>}</div>
                   <div className="item-qty">{item.quantity} {item.unit}</div>
