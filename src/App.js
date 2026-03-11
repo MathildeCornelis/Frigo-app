@@ -98,8 +98,13 @@ const style = `
   }
   body { font-family: 'DM Sans', sans-serif; background-color: var(--cream); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
   body.dark { --cream: #1a1212; --white: #241818; --text: #F5E4D1; --text-muted: #c9a898; --brown: #e8c4ad; --terracotta-light: #3d2020; --shadow: 0 4px 24px rgba(0,0,0,0.4); --shadow-lg: 0 12px 40px rgba(0,0,0,0.5); }
-  .btn-dark { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.2rem 0.3rem; border-radius: 8px; transition: transform 0.2s; }
-  .btn-dark:hover { transform: scale(1.15); }
+  .btn-burger { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 8px; color: var(--brown); display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; width: 36px; height: 36px; }
+  .btn-burger span { display: block; width: 18px; height: 2px; background: var(--brown); border-radius: 2px; transition: all 0.2s; }
+  .burger-menu { position: absolute; top: 3.5rem; right: 1rem; background: var(--white); border-radius: 16px; box-shadow: var(--shadow-lg); z-index: 1000; min-width: 200px; overflow: hidden; animation: fadeIn 0.15s ease; }
+  .burger-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1.1rem; font-size: 0.95rem; font-weight: 500; color: var(--text); cursor: pointer; border: none; background: none; width: 100%; font-family: "DM Sans",sans-serif; transition: background 0.12s; }
+  .burger-item:hover { background: rgba(92,61,46,0.07); }
+  .burger-item + .burger-item { border-top: 1px solid rgba(92,61,46,0.08); }
+  .burger-item.danger { color: #e74c3c; }
 
   /* AUTH */
   .page-auth {
@@ -625,10 +630,12 @@ function ShoppingListModal({ onClose }) {
         {showAddForm ? (
           <div style={{marginBottom:"1rem"}}>
             <div className="field"><label>Nom du produit</label><input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="ex: Yaourts nature" autoFocus /></div>
-            <div className="field"><label>Catégorie</label>
-              <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
-              </select>
+            <div className="field"><label>Quantité</label>
+              <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                <button type="button" onClick={() => setNewItem({...newItem, quantity: Math.max(1, newItem.quantity - 1)})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"36px",height:"36px",cursor:"pointer",fontSize:"1.2rem"}}>−</button>
+                <span style={{fontWeight:"600",fontSize:"1.1rem",minWidth:"28px",textAlign:"center"}}>{newItem.quantity}</span>
+                <button type="button" onClick={() => setNewItem({...newItem, quantity: newItem.quantity + 1})} style={{background:"rgba(92,61,46,0.08)",border:"none",borderRadius:"8px",width:"36px",height:"36px",cursor:"pointer",fontSize:"1.2rem"}}>+</button>
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowAddForm(false)}>Annuler</button>
@@ -708,6 +715,7 @@ function FridgeApp({ user, onBack }) {
   const [expiryFilter, setExpiryFilter] = useState("all");
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [showWasteHistory, setShowWasteHistory] = useState(false);
+  const [showBurger, setShowBurger] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
   useEffect(() => {
@@ -772,6 +780,13 @@ function FridgeApp({ user, onBack }) {
     setTimeout(() => document.addEventListener("click", handler), 0);
     return () => document.removeEventListener("click", handler);
   }, [showSortMenu]);
+
+  useEffect(() => {
+    if (!showBurger) return;
+    const handler = () => setShowBurger(false);
+    setTimeout(() => document.addEventListener("click", handler), 0);
+    return () => document.removeEventListener("click", handler);
+  }, [showBurger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addItem = async (data) => {
     const { data: inserted } = await supabase.from("items").insert([{ ...data, user_id: user.id, id: Date.now() }]).select();
@@ -885,11 +900,28 @@ function FridgeApp({ user, onBack }) {
       <div className="app-header">
         <h1>Mes réserves</h1>
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
-          <button className="btn-dark" onClick={() => setDarkMode(v => !v)}>{darkMode ? "☀️" : "🌙"}</button>
           <button className={`btn-refresh ${refreshing ? "spinning" : ""}`} onClick={() => fetchItems(true)} title="Actualiser">🔄</button>
-          <button className="btn-notif" onClick={() => setShowShoppingList(true)}>🛒</button>
-          <button className="btn-notif" onClick={() => setShowWasteHistory(true)}>📊</button>
-          <button className="btn-back" onClick={onBack}>← Accueil</button>
+          <div style={{position:"relative"}}>
+            <button className="btn-burger" onClick={() => setShowBurger(v => !v)}>
+              <span /><span /><span />
+            </button>
+            {showBurger && (
+              <div className="burger-menu">
+                <button className="burger-item" onClick={() => { setDarkMode(v => !v); setShowBurger(false); }}>
+                  {darkMode ? "☀️" : "🌙"} {darkMode ? "Mode clair" : "Mode sombre"}
+                </button>
+                <button className="burger-item" onClick={() => { setShowShoppingList(true); setShowBurger(false); }}>
+                  🛒 Liste de courses
+                </button>
+                <button className="burger-item" onClick={() => { setShowWasteHistory(true); setShowBurger(false); }}>
+                  📊 Historique gaspillage
+                </button>
+                <button className="burger-item danger" onClick={() => { setShowBurger(false); onBack(); }}>
+                  ← Retour accueil
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
