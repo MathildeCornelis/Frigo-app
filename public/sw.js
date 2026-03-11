@@ -2,8 +2,8 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
   self.registration.showNotification(data.title || '⚠️ Mon Frigo', {
     body: data.body || '',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/logo512.png',
+    badge: '/logo512.png',
   });
 });
 
