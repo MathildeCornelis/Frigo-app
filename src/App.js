@@ -98,12 +98,19 @@ const style = `
   }
   body { font-family: 'DM Sans', sans-serif; background-color: var(--cream); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
   body.dark { --cream: #1a1212; --white: #241818; --text: #F5E4D1; --text-muted: #c9a898; --brown: #e8c4ad; --terracotta-light: #3d2020; --shadow: 0 4px 24px rgba(0,0,0,0.4); --shadow-lg: 0 12px 40px rgba(0,0,0,0.5); }
-  .btn-burger { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 8px; color: var(--brown); display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; width: 36px; height: 36px; }
+  .btn-burger { background: none; border: none; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 8px; color: var(--brown); display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; width: 36px; height: 36px; }
   .btn-burger span { display: block; width: 18px; height: 2px; background: var(--brown); border-radius: 2px; transition: all 0.2s; }
-  .burger-menu { position: absolute; top: 3.5rem; right: 1rem; background: var(--white); border-radius: 16px; box-shadow: var(--shadow-lg); z-index: 1000; min-width: 200px; overflow: hidden; animation: fadeIn 0.15s ease; }
-  .burger-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1.1rem; font-size: 0.95rem; font-weight: 500; color: var(--text); cursor: pointer; border: none; background: none; width: 100%; font-family: "DM Sans",sans-serif; transition: background 0.12s; }
+  .burger-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 999; animation: fadeIn 0.2s ease; }
+  .burger-menu { position: fixed; top: 0; right: 0; height: 100vh; width: min(280px, 80vw); background: var(--white); box-shadow: -8px 0 40px rgba(92,61,46,0.18); z-index: 1000; display: flex; flex-direction: column; animation: slideInRight 0.25s cubic-bezier(0.4,0,0.2,1); }
+  @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .burger-header { padding: 3rem 1.5rem 1.5rem; border-bottom: 1px solid rgba(92,61,46,0.1); }
+  .burger-header h3 { font-family: "DM Serif Display", serif; font-size: 1.4rem; color: var(--brown); margin: 0; }
+  .burger-header p { font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0 0; }
+  .burger-items { flex: 1; padding: 1rem 0; }
+  .burger-item { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; font-size: 1rem; font-weight: 500; color: var(--text); cursor: pointer; border: none; background: none; width: 100%; font-family: "DM Sans",sans-serif; transition: background 0.12s; }
   .burger-item:hover { background: rgba(92,61,46,0.07); }
-  .burger-item + .burger-item { border-top: 1px solid rgba(92,61,46,0.08); }
+  .burger-item-icon { font-size: 1.3rem; width: 32px; text-align: center; }
+  .burger-footer { padding: 1.5rem; border-top: 1px solid rgba(92,61,46,0.1); }
   .burger-item.danger { color: #e74c3c; }
 
   /* AUTH */
@@ -906,20 +913,35 @@ function FridgeApp({ user, onBack }) {
               <span /><span /><span />
             </button>
             {showBurger && (
-              <div className="burger-menu">
-                <button className="burger-item" onClick={() => { setDarkMode(v => !v); setShowBurger(false); }}>
-                  {darkMode ? "☀️" : "🌙"} {darkMode ? "Mode clair" : "Mode sombre"}
-                </button>
-                <button className="burger-item" onClick={() => { setShowShoppingList(true); setShowBurger(false); }}>
-                  🛒 Liste de courses
-                </button>
-                <button className="burger-item" onClick={() => { setShowWasteHistory(true); setShowBurger(false); }}>
-                  📊 Historique gaspillage
-                </button>
-                <button className="burger-item danger" onClick={() => { setShowBurger(false); onBack(); }}>
-                  ← Retour accueil
-                </button>
-              </div>
+              <>
+                <div className="burger-overlay" onClick={() => setShowBurger(false)} />
+                <div className="burger-menu">
+                  <div className="burger-header">
+                    <h3>Mon Frigo</h3>
+                    <p>Menu principal</p>
+                  </div>
+                  <div className="burger-items">
+                    <button className="burger-item" onClick={() => { setDarkMode(v => !v); setShowBurger(false); }}>
+                      <span className="burger-item-icon">{darkMode ? "☀️" : "🌙"}</span>
+                      {darkMode ? "Mode clair" : "Mode sombre"}
+                    </button>
+                    <button className="burger-item" onClick={() => { setShowShoppingList(true); setShowBurger(false); }}>
+                      <span className="burger-item-icon">🛒</span>
+                      Liste de courses
+                    </button>
+                    <button className="burger-item" onClick={() => { setShowWasteHistory(true); setShowBurger(false); }}>
+                      <span className="burger-item-icon">📊</span>
+                      Historique gaspillage
+                    </button>
+                  </div>
+                  <div className="burger-footer">
+                    <button className="burger-item danger" style={{padding:"0.75rem 0",width:"100%"}} onClick={() => { setShowBurger(false); onBack(); }}>
+                      <span className="burger-item-icon">←</span>
+                      Retour à l'accueil
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
