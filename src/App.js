@@ -474,9 +474,11 @@ function ItemForm({ initial, onSave, onCancel, title }) {
         <div className="field"><label>Unité</label><select name="unit" value={form.unit} onChange={handleChange}><option>pièce</option><option>g</option><option>kg</option><option>ml</option><option>L</option></select></div>
       </div>
       <div className="field"><label>Localisation</label><select name="location" value={form.location} onChange={handleChange}><option>Frigo</option><option>Congélateur</option><option>Placard</option></select></div>
-      <div className="field" style={{display:"flex",alignItems:"center",gap:"0.6rem",background:"rgba(92,61,46,0.04)",borderRadius:"10px",padding:"0.7rem 0.9rem"}}>
-        <input type="checkbox" id="reorder" name="reorder" checked={!!form.reorder} onChange={e => setForm({...form, reorder: e.target.checked})} style={{width:"18px",height:"18px",accentColor:"var(--terracotta)",cursor:"pointer",flexShrink:0}} />
-        <label htmlFor="reorder" style={{fontSize:"0.9rem",color:"var(--text)",cursor:"pointer",textTransform:"none",letterSpacing:"normal",fontWeight:"500",marginBottom:0}}>🛒 Ajouter à la liste de courses quand épuisé</label>
+      <div className="field" onClick={() => setForm({...form, reorder: !form.reorder})} style={{display:"flex",alignItems:"center",gap:"0.75rem",background: form.reorder ? "rgba(186,130,106,0.12)" : "rgba(92,61,46,0.04)",borderRadius:"10px",padding:"0.7rem 0.9rem",cursor:"pointer",border: form.reorder ? "1.5px solid rgba(186,130,106,0.4)" : "1.5px solid transparent",transition:"all 0.15s"}}>
+        <div style={{width:"20px",height:"20px",borderRadius:"6px",border:"2px solid",borderColor: form.reorder ? "var(--terracotta)" : "#ccc",background: form.reorder ? "var(--terracotta)" : "white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+          {form.reorder && <span style={{color:"white",fontSize:"13px",fontWeight:"bold",lineHeight:1}}>✓</span>}
+        </div>
+        <span style={{fontSize:"0.9rem",color:"var(--text)",fontWeight:"500"}}>🛒 Ajouter à la liste de courses quand épuisé</span>
       </div>
       <div className="field">
         <label>Date de péremption</label>
@@ -584,7 +586,6 @@ function FridgeApp({ user, onBack }) {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [showNotifs, setShowNotifs] = useState(false);
   const [expiryFilter, setExpiryFilter] = useState("all");
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -711,10 +712,6 @@ function FridgeApp({ user, onBack }) {
         <div style={{display:"flex",gap:"0.5rem",alignItems:"center"}}>
           <button className={`btn-refresh ${refreshing ? "spinning" : ""}`} onClick={() => fetchItems(true)} title="Actualiser">🔄</button>
           <button className="btn-notif" onClick={() => setShowShoppingList(true)}>🛒</button>
-          <button className="btn-notif" onClick={() => setShowNotifs(true)}>
-            🔔
-            {(soonToExpire.length + expired.length) > 0 && <span className="notif-badge">{soonToExpire.length + expired.length}</span>}
-          </button>
           <button className="btn-back" onClick={onBack}>← Accueil</button>
         </div>
       </div>
@@ -840,34 +837,7 @@ function FridgeApp({ user, onBack }) {
         <ShoppingListModal onClose={() => setShowShoppingList(false)} />
       )}
 
-      {showNotifs && (
-        <div className="modal-overlay" onClick={() => setShowNotifs(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" /><h2>🔔 Notifications</h2>
-            {soonToExpire.length === 0 && expired.length === 0 ? (
-              <div className="notif-empty"><span>✅</span><p>Tout est en ordre !<br />Aucun produit à signaler.</p></div>
-            ) : (
-              <div className="notif-list">
-                {expired.length > 0 && (
-                  <div className="alert-box danger"><span className="alert-icon">🚫</span>
-                    <div className="alert-body"><strong>Produits périmés</strong><ul>
-                      {expired.map(item => <li key={item.id}>{item.name} — périmé depuis {Math.abs(daysLeft(item.expiry))}j</li>)}
-                    </ul></div>
-                  </div>
-                )}
-                {soonToExpire.length > 0 && (
-                  <div className="alert-box"><span className="alert-icon">⚠️</span>
-                    <div className="alert-body"><strong>À consommer bientôt</strong><ul>
-                      {soonToExpire.map(item => <li key={item.id}>{item.name} — {daysLeft(item.expiry) === 0 ? "aujourd'hui !" : `${daysLeft(item.expiry)}j`}</li>)}
-                    </ul></div>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="modal-footer"><button className="btn-cancel" onClick={() => setShowNotifs(false)}>Fermer</button></div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
