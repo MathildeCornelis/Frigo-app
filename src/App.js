@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { BrowserMultiFormatReader } from "@zxing/library";
 import { supabase } from "./supabase";
 
 const CATEGORIES = [
@@ -222,6 +223,16 @@ const style = `
   .btn-submit { flex: 2; font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; color: white; background: var(--terracotta); border: none; border-radius: 12px; padding: 0.9rem; cursor: pointer; box-shadow: 0 4px 14px rgba(186,130,106,0.4); transition: all 0.15s; }
   .btn-submit:hover { background: var(--terracotta-dark); transform: translateY(-1px); }
   .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-size: 2rem; }
+  .btn-scan { font-family: "DM Sans", sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--terracotta); background: rgba(186,130,106,0.1); border: 1.5px solid rgba(186,130,106,0.3); border-radius: 10px; padding: 0.6rem 0.9rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 0.4rem; width: 100%; justify-content: center; margin-bottom: 0.75rem; }
+  .btn-scan:hover { background: rgba(186,130,106,0.2); border-color: var(--terracotta); }
+  .scanner-wrap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 0.75rem; }
+  .scanner-wrap video { width: 100%; display: block; max-height: 220px; object-fit: cover; }
+  .scanner-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .scanner-frame { width: 60%; aspect-ratio: 1; border: 2.5px solid var(--terracotta); border-radius: 12px; box-shadow: 0 0 0 1000px rgba(0,0,0,0.4); }
+  .btn-scan-close { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0,0,0,0.5); border: none; color: white; border-radius: 100px; width: 28px; height: 28px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; }
+  .scan-status { font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 0.75rem; }
+  .scan-status.success { color: #27ae60; font-weight: 600; }
+  .scan-status.error { color: #e74c3c; }
   .pull-indicator { text-align: center; padding: 0.75rem; font-size: 0.85rem; color: var(--text-muted); animation: fadeIn 0.2s ease; }
   .btn-refresh { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.2rem; border-radius: 100px; transition: transform 0.3s; }
   .btn-refresh:hover { transform: rotate(180deg); }
@@ -307,19 +318,73 @@ function AuthPage({ onAuth }) {
 
 function ItemForm({ initial, onSave, onCancel, title }) {
   const [form, setForm] = useState(initial);
+  const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState("");
+  const videoRef = useRef(null);
+  const readerRef = useRef(null);
+
   const handleChange = (e) => {
     let value = e.target.value;
     if (e.target.name === "name" && value.length > 0) value = value.charAt(0).toUpperCase() + value.slice(1);
     setForm({ ...form, [e.target.name]: value });
   };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name) return;
     onSave({ ...form, quantity: Number(form.quantity) });
   };
+
+  const startScan = async () => {
+    setScanning(true);
+    setScanStatus("Pointez la caméra vers le code-barres...");
+    readerRef.current = new BrowserMultiFormatReader();
+    try {
+      await readerRef.current.decodeFromVideoDevice(null, videoRef.current, async (result, err) => {
+        if (result) {
+          stopScan();
+          setScanStatus("Code détecté ! Recherche du produit...");
+          try {
+            const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${result.getText()}.json`);
+            const data = await res.json();
+            if (data.status === 1) {
+              const p = data.product;
+              const name = p.product_name_fr || p.product_name || "";
+              setForm(f => ({ ...f, name: name.charAt(0).toUpperCase() + name.slice(1) }));
+              setScanStatus(`✅ Produit trouvé : ${name}`);
+            } else {
+              setScanStatus("❌ Produit non trouvé, entre le nom manuellement.");
+            }
+          } catch {
+            setScanStatus("❌ Erreur lors de la recherche.");
+          }
+        }
+      });
+    } catch {
+      setScanStatus("❌ Impossible d'accéder à la caméra.");
+      setScanning(false);
+    }
+  };
+
+  const stopScan = () => {
+    if (readerRef.current) { readerRef.current.reset(); readerRef.current = null; }
+    setScanning(false);
+  };
+
+  useEffect(() => { return () => { if (readerRef.current) { readerRef.current.reset(); } }; }, []);
+
   return (
     <form onSubmit={handleSubmit}>
-      <div className="field"><label>Nom du produit</label><input name="name" value={form.name} onChange={handleChange} placeholder="ex: Yaourts nature" autoFocus /></div>
+      <button type="button" className="btn-scan" onClick={startScan}>📷 Scanner un code-barres</button>
+      {scanning && (
+        <div className="scanner-wrap">
+          <video ref={videoRef} />
+          <div className="scanner-overlay"><div className="scanner-frame" /></div>
+          <button type="button" className="btn-scan-close" onClick={stopScan}>✕</button>
+        </div>
+      )}
+      {scanStatus && <div className={`scan-status ${scanStatus.startsWith("✅") ? "success" : scanStatus.startsWith("❌") ? "error" : ""}`}>{scanStatus}</div>}
+      <div className="field"><label>Nom du produit</label><input name="name" value={form.name} onChange={handleChange} placeholder="ex: Yaourts nature" /></div>
       <div className="field">
         <label>Catégorie</label>
         <div className="cat-picker">
