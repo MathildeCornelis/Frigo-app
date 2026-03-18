@@ -42,6 +42,18 @@ function checkExpiredItems(items) {
   });
 }
 
+async function recordExpiredInHistory(items, userId) {
+  const expired = items.filter(i => i.expiry && daysLeft(i.expiry) < 0);
+  if (expired.length === 0) return;
+  const recorded = JSON.parse(localStorage.getItem('recordedExpired') || '[]');
+  const toRecord = expired.filter(i => !recorded.includes(String(i.id)));
+  if (toRecord.length === 0) return;
+  localStorage.setItem('recordedExpired', JSON.stringify([...recorded, ...toRecord.map(i => String(i.id))]));
+  for (const item of toRecord) {
+    await supabase.from("waste_history").insert([{ id: Date.now() + Math.random(), user_id: item.user_id, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: 'périmé' }]);
+  }
+}
+
 function checkExpiringItems(items) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const expiring = items.filter(i => {
@@ -82,8 +94,45 @@ const CATEGORIES = [
   { id: "plat", label: "Plat cuisiné", icon: "🍱" },
   { id: "surgele", label: "Surgelé", icon: "🧊" },
   { id: "epicerie", label: "Épicerie sèche", icon: "🌾" },
+  { id: "oeuf", label: "Œufs", icon: "🥚" },
+  { id: "patisserie", label: "Pâtisserie & Desserts", icon: "🥧" },
+  { id: "fruitsmer", label: "Fruits de mer", icon: "🦐" },
+  { id: "soupe", label: "Soupes & Bouillons", icon: "🥣" },
+  { id: "viennoiserie", label: "Viennoiseries", icon: "🫓" },
+  { id: "legumineuse", label: "Légumineuses", icon: "🫘" },
   { id: "autre", label: "Autre", icon: "🫙" },
 ];
+
+
+const FREEZER_DURATIONS = {
+  laitier: { months: 3, label: "3 mois" },
+  viande: { months: 6, label: "6 mois" },
+  poisson: { months: 3, label: "3 mois" },
+  legume: { months: 12, label: "12 mois" },
+  "legume-conserve": { months: 12, label: "12 mois" },
+  fruit: { months: 12, label: "12 mois" },
+  "fruit-conserve": { months: 12, label: "12 mois" },
+  feculents: { months: 3, label: "3 mois" },
+  pain: { months: 3, label: "3 mois" },
+  condiment: { months: 6, label: "6 mois" },
+  boisson: { months: 3, label: "3 mois" },
+  plat: { months: 3, label: "3 mois" },
+  surgele: { months: 12, label: "12 mois" },
+  epicerie: { months: 6, label: "6 mois" },
+  oeuf: { months: 12, label: "12 mois" },
+  patisserie: { months: 3, label: "3 mois" },
+  fruitsmer: { months: 3, label: "3 mois" },
+  soupe: { months: 3, label: "3 mois" },
+  viennoiserie: { months: 1, label: "1 mois" },
+  legumineuse: { months: 3, label: "3 mois" },
+  autre: { months: 3, label: "3 mois" },
+};
+
+function addMonths(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split('T')[0];
+}
 
 const getCategoryIcon = (catId) => CATEGORIES.find(c => c.id === catId)?.icon || "🫙";
 
@@ -421,7 +470,13 @@ function ItemForm({ initial, onSave, onCancel, title }) {
   const handleChange = (e) => {
     let value = e.target.value;
     if (e.target.name === "name" && value.length > 0) value = value.charAt(0).toUpperCase() + value.slice(1);
-    setForm({ ...form, [e.target.name]: value });
+    const updated = { ...form, [e.target.name]: value };
+    // Auto-fill expiry for freezer
+    if ((e.target.name === "category" || e.target.name === "location") && updated.location === "Congélateur") {
+      const rec = FREEZER_DURATIONS[updated.category];
+      if (rec) updated.expiry = addMonths(rec.months);
+    }
+    setForm(updated);
   };
 
   const handleSubmit = (e) => {
@@ -515,6 +570,11 @@ function ItemForm({ initial, onSave, onCancel, title }) {
             <option value="">Année</option>{Array.from({length:6},(_,i)=>new Date().getFullYear()+i).map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
+        {form.location === "Congélateur" && FREEZER_DURATIONS[form.category] && (
+          <div style={{fontSize:"0.78rem",color:"var(--text-muted)",marginTop:"0.35rem",display:"flex",alignItems:"center",gap:"0.3rem"}}>
+            ❄️ Durée recommandée au congélateur : <strong style={{color:"var(--terracotta)"}}>{FREEZER_DURATIONS[form.category].label}</strong>
+          </div>
+        )}
       </div>
       <div className="modal-footer">
         <button type="button" className="btn-cancel" onClick={onCancel}>Annuler</button>
@@ -745,6 +805,7 @@ function FridgeApp({ user, onBack }) {
     if (items.length > 0) {
       checkExpiringItems(items);
       checkExpiredItems(items);
+      recordExpiredInHistory(items, user?.id);
     }
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
