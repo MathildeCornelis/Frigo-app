@@ -43,6 +43,7 @@ function checkExpiredItems(items) {
 }
 
 async function recordExpiredInHistory(items, userId) {
+  if (!userId) return;
   const expired = items.filter(i => i.expiry && daysLeft(i.expiry) < 0);
   if (expired.length === 0) return;
   const recorded = JSON.parse(localStorage.getItem('recordedExpired') || '[]');
@@ -50,7 +51,7 @@ async function recordExpiredInHistory(items, userId) {
   if (toRecord.length === 0) return;
   localStorage.setItem('recordedExpired', JSON.stringify([...recorded, ...toRecord.map(i => String(i.id))]));
   for (const item of toRecord) {
-    await supabase.from("waste_history").insert([{ id: Date.now() + Math.random(), user_id: item.user_id, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: 'périmé' }]);
+    await supabase.from("waste_history").insert([{ id: Date.now() + Math.floor(Math.random() * 1000), user_id: userId, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: 'périmé' }]);
   }
 }
 
@@ -588,9 +589,19 @@ function WasteHistoryModal({ user, onClose }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadHistory = () => {
+    setLoading(true);
     supabase.from("waste_history").select("*").eq("user_id", user.id).order("deleted_at", { ascending: false }).limit(50)
       .then(({ data }) => { if (data) setHistory(data); setLoading(false); });
+  };
+
+  useEffect(() => {
+    loadHistory();
+    const channel = supabase
+      .channel("waste-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "waste_history" }, () => loadHistory())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byMonth = history.reduce((acc, i) => {
@@ -604,7 +615,10 @@ function WasteHistoryModal({ user, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <h2>📊 Historique de gaspillage</h2>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+          <h2 style={{margin:0}}>📊 Historique</h2>
+          <button onClick={loadHistory} style={{background:"none",border:"none",fontSize:"1.1rem",cursor:"pointer",borderRadius:"8px",padding:"0.2rem 0.4rem"}} title="Actualiser">🔄</button>
+        </div>
         {loading ? <div style={{textAlign:"center",padding:"2rem"}}>Chargement...</div> :
         history.length === 0 ? (
           <div className="notif-empty"><span>🌱</span><p>Aucun gaspillage enregistré !<br />Bravo !</p></div>
