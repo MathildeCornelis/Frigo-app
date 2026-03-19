@@ -49,9 +49,17 @@ async function recordExpiredInHistory(items, userId) {
   const recorded = JSON.parse(localStorage.getItem('recordedExpired') || '[]');
   const toRecord = expired.filter(i => !recorded.includes(String(i.id)));
   if (toRecord.length === 0) return;
-  localStorage.setItem('recordedExpired', JSON.stringify([...recorded, ...toRecord.map(i => String(i.id))]));
-  for (const item of toRecord) {
-    await supabase.from("waste_history").insert([{ id: Date.now() + Math.floor(Math.random() * 1000), user_id: userId, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: 'périmé' }]);
+  // Vérification côté Supabase pour éviter les doublons
+  const { data: existing } = await supabase.from("waste_history")
+    .select("item_ref")
+    .in("item_ref", toRecord.map(i => String(i.id)))
+    .eq("user_id", userId);
+  const existingRefs = (existing || []).map(e => e.item_ref);
+  const finalToRecord = toRecord.filter(i => !existingRefs.includes(String(i.id)));
+  if (finalToRecord.length === 0) return;
+  localStorage.setItem('recordedExpired', JSON.stringify([...recorded, ...finalToRecord.map(i => String(i.id))]));
+  for (const item of finalToRecord) {
+    await supabase.from("waste_history").insert([{ id: Date.now() + Math.floor(Math.random() * 1000), user_id: userId, item_ref: String(item.id), name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: 'périmé' }]);
   }
 }
 
@@ -588,10 +596,11 @@ function ItemForm({ initial, onSave, onCancel, title }) {
 function WasteHistoryModal({ user, onClose }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const loadHistory = () => {
     setLoading(true);
-    supabase.from("waste_history").select("*").eq("user_id", user.id).order("deleted_at", { ascending: false }).limit(50)
+    supabase.from("waste_history").select("*").eq("user_id", user.id).order("deleted_at", { ascending: false })
       .then(({ data }) => { if (data) setHistory(data); setLoading(false); });
   };
 
@@ -604,6 +613,13 @@ function WasteHistoryModal({ user, onClose }) {
     return () => supabase.removeChannel(channel);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const clearHistory = async () => {
+    await supabase.from("waste_history").delete().eq("user_id", user.id);
+    localStorage.removeItem('recordedExpired');
+    setHistory([]);
+    setConfirmClear(false);
+  };
+
   const byMonth = history.reduce((acc, i) => {
     const m = new Date(i.deleted_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     if (!acc[m]) acc[m] = [];
@@ -615,7 +631,7 @@ function WasteHistoryModal({ user, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
           <h2 style={{margin:0}}>📊 Historique</h2>
           <button onClick={loadHistory} style={{background:"none",border:"none",fontSize:"1.1rem",cursor:"pointer",borderRadius:"8px",padding:"0.2rem 0.4rem"}} title="Actualiser">🔄</button>
         </div>
@@ -623,18 +639,34 @@ function WasteHistoryModal({ user, onClose }) {
         history.length === 0 ? (
           <div className="notif-empty"><span>🌱</span><p>Aucun gaspillage enregistré !<br />Bravo !</p></div>
         ) : (
-          Object.entries(byMonth).map(([month, items]) => (
-            <div key={month} style={{marginBottom:"1.25rem"}}>
-              <div style={{fontSize:"0.8rem",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:"0.5rem"}}>{month} — {items.length} produit{items.length > 1 ? "s" : ""}</div>
-              {items.map(i => (
-                <div key={i.id} style={{display:"flex",alignItems:"center",gap:"0.75rem",background:"var(--white)",borderRadius:"10px",padding:"0.6rem 0.9rem",marginBottom:"0.4rem",boxShadow:"var(--shadow)"}}>
-                  <span style={{fontSize:"1.1rem"}}>{getCategoryIcon(i.category)}</span>
-                  <span style={{flex:1,fontSize:"0.9rem",fontWeight:"500"}}>{i.name}</span>
-                  <span style={{fontSize:"0.75rem",color: i.reason === "périmé" ? "#e74c3c" : "var(--text-muted)",fontWeight:"600"}}>{i.reason}</span>
+          <>
+            {Object.entries(byMonth).map(([month, items]) => (
+              <div key={month} style={{marginBottom:"1.25rem"}}>
+                <div style={{fontSize:"0.8rem",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:"0.5rem",display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                  <span>{month}</span>
+                  <span style={{background:"rgba(92,61,46,0.1)",borderRadius:"100px",padding:"0.1rem 0.5rem"}}>{items.length} produit{items.length > 1 ? "s" : ""}</span>
                 </div>
-              ))}
-            </div>
-          ))
+                {items.map(i => (
+                  <div key={i.id} style={{display:"flex",alignItems:"center",gap:"0.75rem",background:"var(--white)",borderRadius:"10px",padding:"0.6rem 0.9rem",marginBottom:"0.4rem",boxShadow:"var(--shadow)"}}>
+                    <span style={{fontSize:"1.1rem"}}>{getCategoryIcon(i.category)}</span>
+                    <span style={{flex:1,fontSize:"0.9rem",fontWeight:"500"}}>{i.name}</span>
+                    <span style={{fontSize:"0.75rem",color:"#e74c3c",fontWeight:"600"}}>périmé</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {confirmClear ? (
+              <div style={{background:"#fde8e8",borderRadius:"12px",padding:"1rem",marginTop:"0.5rem",textAlign:"center"}}>
+                <p style={{fontSize:"0.9rem",marginBottom:"0.75rem",color:"#e74c3c",fontWeight:"500"}}>Vider tout l'historique ?</p>
+                <div style={{display:"flex",gap:"0.5rem",justifyContent:"center"}}>
+                  <button className="btn-cancel" onClick={() => setConfirmClear(false)}>Annuler</button>
+                  <button className="btn-submit" style={{background:"#e74c3c"}} onClick={clearHistory}>Vider</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn-clear-list" onClick={() => setConfirmClear(true)}>🗑 Vider l'historique</button>
+            )}
+          </>
         )}
         <div className="modal-footer"><button className="btn-cancel" onClick={onClose}>Fermer</button></div>
       </div>
@@ -797,6 +829,13 @@ function FridgeApp({ user, onBack }) {
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [showWasteHistory, setShowWasteHistory] = useState(false);
   const [showBurger, setShowBurger] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
   useEffect(() => {
@@ -917,9 +956,6 @@ function FridgeApp({ user, onBack }) {
       if (undoTimer.current) clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(async () => {
         await supabase.from("items").delete().eq("id", id);
-        if (item.reorder || (item.expiry && daysLeft(item.expiry) < 0)) {
-          await supabase.from("waste_history").insert([{ id: Date.now(), user_id: user.id, name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, reason: item.expiry && daysLeft(item.expiry) < 0 ? 'périmé' : 'consommé' }]);
-        }
         setUndoItem(null);
       }, 3000);
     } else {
@@ -1097,7 +1133,8 @@ function FridgeApp({ user, onBack }) {
                 <li id={`item-${item.id}`} className={`item-card ${status}`}
                   onTouchStart={e => handleSwipeStart(e, item.id)}
                   onTouchMove={handleSwipeMove}
-                  onTouchEnd={handleSwipeEnd}>
+                  onTouchEnd={handleSwipeEnd}
+                  onClick={() => { if (isMobile) setEditingItem(item); }}>
                   <div className="item-dot" />
                   {item.image_url
                     ? <img className="item-img" src={item.image_url} alt={item.name} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
@@ -1111,8 +1148,6 @@ function FridgeApp({ user, onBack }) {
                   <div className="item-actions">
                     <div className="item-action-row">
                       <span className="item-location">{item.location === "Frigo" ? "🌡️" : item.location === "Congélateur" ? "❄️" : "🗄️"}</span>
-                      <button className="btn-edit" onClick={() => setEditingItem(item)}>✏️</button>
-                      <button className="btn-delete" onClick={() => deleteItem(item.id, true)}>🗑</button>
                     </div>
                     <div className="qty-controls">
                       <button className="btn-consume" onClick={() => decreaseQuantity(item.id)}>−</button>
